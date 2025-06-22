@@ -4,33 +4,32 @@ on:
   push:
     branches:
       - main
-      
+
 jobs:
   build-analyze-scan:
-    name: Build
+    name: Build and Analyze with SonarQube + Trivy + Docker
     runs-on: [self-hosted]
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0  # Needed for SonarQube analysis
+
       - name: Build and analyze with SonarQube
-        uses: sonarsource/sonarqube-scan-action@master
+        uses: sonarsource/sonarqube-scan-action@v2.0.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          
+
       - name: Trivy File Scan
         run: trivy fs . > trivyfs.txt
 
-      – name: Docker Build and Push   
-        run: | 
-          docker build -t tic-tac-toe . 
-          docker tag tic-tac-toe ashikahammad/tic-tac-toe:latest 
-          docker login -u ${{ vars.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }} 
-          docker push ashikahammad/tic-tac-toe:latest 
-        env: 
-          DOCKER_CLI_ACI: 1 
-        
-
-     
+      - name: Docker Build and Push
+        run: |
+          docker build -t tic-tac-toe .
+          docker tag tic-tac-toe ashikahammad/tic-tac-toe:latest
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ vars.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push ashikahammad/tic-tac-toe:latest
+        env:
+          DOCKER_CLI_ACI: "1"
