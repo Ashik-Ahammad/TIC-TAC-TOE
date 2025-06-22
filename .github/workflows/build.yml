@@ -36,3 +36,18 @@ jobs:
 
       - name: Image Scan Trivy
         run: trivy image ashikahammad/tic-tac-toe:latest > trivyimg.txt
+
+  deploy: 
+    needs: build-analyze-scan                               
+    runs-on: [self-hosted]
+    steps:
+      - name: docker pull image
+        run: docker pull ashikahammad/tic-tac-toe:latest
+
+      - name: Image Scan Trivy
+        run: trivy image ashikahammad/tic-tac-toe:latest > trivydeployedimg.txt
+
+      - name: Deploy to a container
+        run: docker run -d --name tic-tac-toe -p 3000:3000 ashikahammad/tic-tac-toe:latest
+
+  
