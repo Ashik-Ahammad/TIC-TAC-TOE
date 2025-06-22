@@ -1,73 +1,68 @@
-name: Build,Analyze,scan
+name: Build
 
 on:
   push:
     branches:
       - main
 
-
 jobs:
   build-analyze-scan:
-    name: Build
+    name: Build and Analyze with SonarQube + Trivy + Docker
     runs-on: [self-hosted]
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0  # Needed for SonarQube analysis
 
       - name: Build and analyze with SonarQube
-        uses: sonarsource/sonarqube-scan-action@master
+        uses: sonarsource/sonarqube-scan-action@v2.0.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          
-      - name: npm install dependency
-        run: npm install
 
-      - name: Trivy file scan
+      - name: Trivy File Scan
         run: trivy fs . > trivyfs.txt
 
-      - name: Docker Build and push
+      - name: Docker Build and Push
         run: |
           docker build -t tic-tac-toe .
-          docker tag tic-tac-toe sevenajay/tic-tac-toe:latest
-          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          docker push sevenajay/tic-tac-toe:latest
+          docker tag tic-tac-toe ashikahammad/tic-tac-toe:latest
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ vars.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push ashikahammad/tic-tac-toe:latest
         env:
-          DOCKER_CLI_ACI: 1
+          DOCKER_CLI_ACI: "1"
 
-      - name: Image scan
-        run: trivy image sevenajay/tic-tac-toe:latest > trivyimage.txt
+      - name: Image Scan Trivy
+        run: trivy image ashikahammad/tic-tac-toe:latest > trivyimg.txt
 
-  deploy:
-   needs: build-analyze-scan   
-   runs-on: [self-hosted]
-   steps:
-      - name: docker pull image
-        run: docker pull sevenajay/tic-tac-toe:latest
+  deploy: 
+    needs: build-analyze-scan                               
+    runs-on: [self-hosted]
+    
+    steps:
+      - name: Docker pull image
+        run: docker pull ashikahammad/tic-tac-toe:latest
 
-      - name: Image scan
-        run: trivy image sevenajay/tic-tac-toe:latest > trivyimagedeploy.txt  
-  
-      - name: Deploy to container
-        run: docker run -d --name game -p 3000:3000 sevenajay/tic-tac-toe:latest
+      - name: Image Scan Trivy
+        run: trivy image ashikahammad/tic-tac-toe:latest > trivydeployedimg.txt
 
-      - name: Update kubeconfig
-        run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
+      - name: Deploy to a container
+        run: docker run -d --name tic-tac-toe -p 3000:3000 ashikahammad/tic-tac-toe:latest
 
-      - name: Deploy to kubernetes
+      - name: Update KubeConfig 
+        run: aws eks --region ap-southeast-1 update-kubeconfig --name EKS_CLOUD
+
+      - name: Deploy to Kubernetes 
         run: kubectl apply -f deployment-service.yml
-  
+        
       - name: Send a Slack Notification
         if: always()
         uses: act10ns/slack@v1
         with:
           status: ${{ job.status }}
           steps: ${{ toJson(steps) }}
-          channel: '#githubactions-eks'
+          channel: '#ghaction-eks-project'     
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  
-
-        
