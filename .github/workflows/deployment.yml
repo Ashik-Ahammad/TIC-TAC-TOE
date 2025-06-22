@@ -40,8 +40,9 @@ jobs:
   deploy: 
     needs: build-analyze-scan                               
     runs-on: [self-hosted]
+    
     steps:
-      - name: docker pull image
+      - name: Docker pull image
         run: docker pull ashikahammad/tic-tac-toe:latest
 
       - name: Image Scan Trivy
@@ -50,4 +51,19 @@ jobs:
       - name: Deploy to a container
         run: docker run -d --name tic-tac-toe -p 3000:3000 ashikahammad/tic-tac-toe:latest
 
-  
+      - name: Update KubeConfig 
+        run: aws eks --region ap-southeast-1 update-kubeconfig --name EKS_CLOUD
+
+      - name: Deploy to Kubernetes 
+        run: kubectl apply -f deployment-service.yml
+        
+      - name: Send a Slack Notification
+        if: always()
+        uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+          channel: '#ghaction-eks-project'     
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        
